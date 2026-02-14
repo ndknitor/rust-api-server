@@ -2,21 +2,37 @@ syntax = "proto3";
 
 package api.v1.auth;
 
+import "common.proto";
+
 service Service {
-    rpc LoginCookie(AuthRequest) returns (AuthCookieResponse);
-    rpc LoginToken(AuthRequest) returns (AuthTokenResponse);
+    // Public
+    rpc DebugCookie(DebugAuthRequest) returns (api.v1.common.StandardResponse);
+    rpc DebugJwt(DebugAuthRequest) returns (api.v1.common.SingleResponse);
+    rpc LoginCookie(SignInRequest) returns (api.v1.common.StandardResponse);
+    rpc LoginToken(SignInRequest) returns (api.v1.common.SingleResponse);
+    rpc Test(SignInRequest) returns (api.v1.common.StandardResponse);
+
+    // Protected (require Bearer token in metadata)
+    rpc Logout(LogoutRequest) returns (api.v1.common.StandardResponse);
+    rpc Refresh(RefreshRequest) returns (api.v1.common.SingleResponse);
+    rpc Authorize(AuthorizeRequest) returns (AuthorizeResponse);
 }
 
-message AuthRequest {
-    string username = 1;
+message SignInRequest {
+    string email = 1;
     string password = 2;
 }
 
-message AuthCookieResponse {
-    int64 expires_at = 1;
+message DebugAuthRequest {
+    int64 id = 1;
+    string role = 2;
+    string user_policy = 3;
 }
 
-message AuthTokenResponse {
-    string token = 1;
-    int64 expires_at = 2;
+message LogoutRequest {}
+message RefreshRequest {}
+message AuthorizeRequest {}
+
+message AuthorizeResponse {
+    string user_id = 1;
 }

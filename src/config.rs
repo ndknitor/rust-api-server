@@ -8,6 +8,8 @@ pub struct Config {
     pub jwt_secret: String,
     pub jwt_ttl: u64,
     pub cors_origins: Vec<String>,
+    pub environment: String,
+    pub database_url: String,
 }
 
 impl Config {
@@ -41,6 +43,12 @@ impl Config {
             .filter(|o| !o.is_empty())
             .collect::<Vec<_>>();
 
+        let environment = env::var("ENVIRONMENT")
+            .unwrap_or_else(|_| "development".into());
+
+        let database_url = env::var("DATABASE_URL")
+            .expect("DATABASE_URL must be set");
+
         Self {
             host,
             http_port,
@@ -48,6 +56,8 @@ impl Config {
             jwt_secret,
             jwt_ttl,
             cors_origins,
+            environment,
+            database_url,
         }
     }
 }

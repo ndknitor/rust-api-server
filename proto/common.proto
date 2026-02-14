@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package api.v1.common;
+
+message StandardResponse {
+    string message = 1;
+}
+
+message SingleResponse {
+    string message = 1;
+    optional string data = 2;
+}
