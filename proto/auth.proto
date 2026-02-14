@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package api.v1.auth;
+
+service Service {
+    rpc LoginCookie(AuthRequest) returns (AuthCookieResponse);
+    rpc LoginToken(AuthRequest) returns (AuthTokenResponse);
+}
+
+message AuthRequest {
+    string username = 1;
+    string password = 2;
+}
+
+message AuthCookieResponse {
+    int64 expires_at = 1;
+}
+
+message AuthTokenResponse {
+    string token = 1;
+    int64 expires_at = 2;
+}

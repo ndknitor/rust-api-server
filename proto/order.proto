@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package api.v1.order;
+
+service Service {
+    rpc GetOrders(GetOrdersRequest) returns (GetOrdersResponse);
+}
+
+message GetOrdersRequest {
+    string user_id = 1;
+}
+
+message Order {
+    string id = 1;
+    string user_id = 2;
+    string product = 3;
+    int32 quantity = 4;
+}
+
+message GetOrdersResponse {
+    repeated Order orders = 1;
+}

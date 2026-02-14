@@ -1,0 +1,5 @@
+/target
+.claude
+Cargo.lock
+CLAUDE.md
+.env
