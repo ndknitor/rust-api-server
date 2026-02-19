@@ -1,19 +1,20 @@
 mod endpoints;
 
 use crate::config::Config;
+use crate::inject::InjectFactory;
 use crate::proto;
 use endpoints::auth::AuthEndpoint;
 use endpoints::seat::SeatEndpoint;
 use http::header::{HeaderName, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use http::Method;
-use sea_orm::DatabaseConnection;
+use std::sync::Arc;
 use tonic::transport::Server;
 use tonic_web::GrpcWebLayer;
 use tower::ServiceBuilder;
-use tower_http::cors::{AllowOrigin, CorsLayer, Any};
+use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 
 pub async fn start(
-    db: DatabaseConnection,
+    factory: Arc<dyn InjectFactory>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let cfg = Config::from_env();
     let addr = format!("{}:{}", cfg.host, cfg.grpc_port).parse()?;
@@ -39,8 +40,8 @@ pub async fn start(
         HeaderName::from_static("grpc-timeout"),
     ]);
 
-    let auth_endpoint = AuthEndpoint::new(cfg.jwt_secret.clone(), cfg.jwt_ttl, cfg.environment.clone());
-    let seat_endpoint = SeatEndpoint::new(db);
+    let auth_endpoint = AuthEndpoint::new(Arc::clone(&factory));
+    let seat_endpoint = SeatEndpoint::new(factory);
 
     Server::builder()
         .accept_http1(true)

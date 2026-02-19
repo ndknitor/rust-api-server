@@ -1,26 +1,22 @@
 use crate::controllers::auth::{AuthController, validate_sign_in};
-use crate::libs::jwt::{Claims, build_claims, decode_token, encode_token};
+use crate::inject::InjectFactory;
+use crate::libs::jwt::Claims;
 use crate::proto::auth::service_server::Service as GrpcAuthService;
 use crate::proto::auth::{
     AuthorizeRequest, AuthorizeResponse, DebugAuthRequest, LogoutRequest, RefreshRequest,
     SignInRequest,
 };
 use crate::proto::common::{SingleResponse, StandardResponse};
+use std::sync::Arc;
 use tonic::{Request, Response, Status};
 
 pub struct AuthEndpoint {
-    jwt_secret: String,
-    jwt_ttl: u64,
-    environment: String,
+    factory: Arc<dyn InjectFactory>,
 }
 
 impl AuthEndpoint {
-    pub fn new(jwt_secret: String, jwt_ttl: u64, environment: String) -> Self {
-        Self {
-            jwt_secret,
-            jwt_ttl,
-            environment,
-        }
+    pub fn new(factory: Arc<dyn InjectFactory>) -> Self {
+        Self { factory }
     }
 
     fn issue_token(
@@ -29,9 +25,10 @@ impl AuthEndpoint {
         roles: Vec<String>,
         policies: Vec<String>,
     ) -> Result<String, Status> {
-        let claims = build_claims(sub.to_string(), self.jwt_ttl, roles, policies);
-        encode_token(&claims, &self.jwt_secret)
-            .map_err(|_| Status::internal("failed to create jwt token"))
+        self.factory
+            .auth_service()
+            .issue_token(sub, roles, policies)
+            .map_err(|e| Status::internal(e))
     }
 
     fn extract_claims<T>(&self, request: &Request<T>) -> Result<Claims, Status> {
@@ -42,7 +39,9 @@ impl AuthEndpoint {
             .and_then(|s| s.strip_prefix("Bearer "))
             .ok_or_else(|| Status::unauthenticated("missing or invalid bearer token"))?;
 
-        decode_token(token, &self.jwt_secret)
+        self.factory
+            .auth_service()
+            .decode_token(token)
             .map_err(|_| Status::unauthenticated("invalid token"))
     }
 }
@@ -53,7 +52,8 @@ impl GrpcAuthService for AuthEndpoint {
         &self,
         request: Request<DebugAuthRequest>,
     ) -> Result<Response<StandardResponse>, Status> {
-        if self.environment == "production" {
+        let auth = self.factory.auth_service();
+        if auth.environment() == "production" {
             return Err(Status::not_found("not found"));
         }
 
@@ -70,14 +70,15 @@ impl GrpcAuthService for AuthEndpoint {
         };
 
         let token = self.issue_token(&req.id.to_string(), vec![role], policies)?;
-        AuthController::cookie_grpc(&token, self.jwt_ttl, "Authenticate successfully")
+        AuthController::cookie_grpc(&token, auth.jwt_ttl(), "Authenticate successfully")
     }
 
     async fn debug_jwt(
         &self,
         request: Request<DebugAuthRequest>,
     ) -> Result<Response<SingleResponse>, Status> {
-        if self.environment == "production" {
+        let auth = self.factory.auth_service();
+        if auth.environment() == "production" {
             return Err(Status::not_found("not found"));
         }
 
@@ -109,8 +110,9 @@ impl GrpcAuthService for AuthEndpoint {
         let roles = vec!["user".to_string()];
         let policies = vec!["read:seats".to_string()];
 
+        let auth = self.factory.auth_service();
         let token = self.issue_token(&req.email, roles, policies)?;
-        AuthController::cookie_grpc(&token, self.jwt_ttl, "Authenticate successfully")
+        AuthController::cookie_grpc(&token, auth.jwt_ttl(), "Authenticate successfully")
     }
 
     async fn login_token(

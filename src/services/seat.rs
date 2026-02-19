@@ -1,4 +1,5 @@
 use crate::entities::{bus, seat};
+use async_trait::async_trait;
 use sea_orm::prelude::Expr;
 use sea_orm::*;
 use std::fmt;
@@ -39,23 +40,53 @@ pub struct UpdateSeatInput {
     pub name: String,
 }
 
-pub struct SeatService<'a> {
-    db: &'a DatabaseConnection,
+#[async_trait]
+pub trait SeatServiceTrait: Send + Sync {
+    async fn get_seats(
+        &self,
+        offset: u64,
+        size: u64,
+    ) -> Result<(Vec<(seat::Model, Option<bus::Model>)>, u64), DbErr>;
+
+    async fn get_seats_by_range(
+        &self,
+        seat_ids: Vec<i32>,
+        names: Vec<String>,
+    ) -> Result<Vec<(seat::Model, Option<bus::Model>)>, DbErr>;
+
+    async fn create_seats(
+        &self,
+        inputs: &[CreateSeatInput],
+    ) -> Result<Vec<seat::Model>, SeatError>;
+
+    async fn update_seats(
+        &self,
+        inputs: &[UpdateSeatInput],
+    ) -> Result<Vec<seat::Model>, SeatError>;
+
+    async fn delete_seats(&self, seat_ids: Vec<i32>) -> Result<u64, DbErr>;
 }
 
-impl<'a> SeatService<'a> {
-    pub fn new(db: &'a DatabaseConnection) -> Self {
+pub struct SeatServiceImpl {
+    db: DatabaseConnection,
+}
+
+impl SeatServiceImpl {
+    pub fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
+}
 
-    pub async fn get_seats(
+#[async_trait]
+impl SeatServiceTrait for SeatServiceImpl {
+    async fn get_seats(
         &self,
         offset: u64,
         size: u64,
     ) -> Result<(Vec<(seat::Model, Option<bus::Model>)>, u64), DbErr> {
         let total = seat::Entity::find()
             .filter(seat::Column::Deleted.eq(false))
-            .count(self.db)
+            .count(&self.db)
             .await?;
 
         let rows = seat::Entity::find()
@@ -63,13 +94,13 @@ impl<'a> SeatService<'a> {
             .find_also_related(bus::Entity)
             .offset(Some(offset))
             .limit(Some(size))
-            .all(self.db)
+            .all(&self.db)
             .await?;
 
         Ok((rows, total))
     }
 
-    pub async fn get_seats_by_range(
+    async fn get_seats_by_range(
         &self,
         seat_ids: Vec<i32>,
         names: Vec<String>,
@@ -86,11 +117,11 @@ impl<'a> SeatService<'a> {
         seat::Entity::find()
             .filter(condition)
             .find_also_related(bus::Entity)
-            .all(self.db)
+            .all(&self.db)
             .await
     }
 
-    pub async fn create_seats(
+    async fn create_seats(
         &self,
         inputs: &[CreateSeatInput],
     ) -> Result<Vec<seat::Model>, SeatError> {
@@ -98,7 +129,7 @@ impl<'a> SeatService<'a> {
         let bus_ids: Vec<i32> = inputs.iter().map(|s| s.bus_id).collect();
         let existing_buses = bus::Entity::find()
             .filter(bus::Column::BusId.is_in(bus_ids.clone()))
-            .all(self.db)
+            .all(&self.db)
             .await?;
         let existing_bus_ids: Vec<i32> = existing_buses.iter().map(|b| b.bus_id).collect();
         for id in &bus_ids {
@@ -139,7 +170,7 @@ impl<'a> SeatService<'a> {
         Ok(created)
     }
 
-    pub async fn update_seats(
+    async fn update_seats(
         &self,
         inputs: &[UpdateSeatInput],
     ) -> Result<Vec<seat::Model>, SeatError> {
@@ -148,7 +179,7 @@ impl<'a> SeatService<'a> {
         let existing_seats = seat::Entity::find()
             .filter(seat::Column::SeatId.is_in(seat_ids.clone()))
             .filter(seat::Column::Deleted.eq(false))
-            .all(self.db)
+            .all(&self.db)
             .await?;
         let existing_seat_ids: Vec<i32> = existing_seats.iter().map(|s| s.seat_id).collect();
         for id in &seat_ids {
@@ -161,7 +192,7 @@ impl<'a> SeatService<'a> {
         let bus_ids: Vec<i32> = inputs.iter().map(|s| s.bus_id).collect();
         let existing_buses = bus::Entity::find()
             .filter(bus::Column::BusId.is_in(bus_ids.clone()))
-            .all(self.db)
+            .all(&self.db)
             .await?;
         let existing_bus_ids: Vec<i32> = existing_buses.iter().map(|b| b.bus_id).collect();
         for id in &bus_ids {
@@ -190,12 +221,12 @@ impl<'a> SeatService<'a> {
         Ok(updated)
     }
 
-    pub async fn delete_seats(&self, seat_ids: Vec<i32>) -> Result<u64, DbErr> {
+    async fn delete_seats(&self, seat_ids: Vec<i32>) -> Result<u64, DbErr> {
         let result = seat::Entity::update_many()
             .col_expr(seat::Column::Deleted, Expr::value(true))
             .filter(seat::Column::SeatId.is_in(seat_ids))
             .filter(seat::Column::Deleted.eq(false))
-            .exec(self.db)
+            .exec(&self.db)
             .await?;
 
         Ok(result.rows_affected)

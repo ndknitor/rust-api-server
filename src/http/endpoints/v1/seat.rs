@@ -1,11 +1,12 @@
 use crate::controllers::seat as seat_ctrl;
+use crate::inject::InjectFactory;
 use crate::proto::seat::{
     CreateSeatInput as ProtoCreateSeatInput, UpdateSeatInput as ProtoUpdateSeatInput,
 };
-use crate::services::seat::{CreateSeatInput, SeatError, SeatService, UpdateSeatInput};
+use crate::services::seat::{CreateSeatInput, SeatError, UpdateSeatInput};
 use actix_web::{web, HttpResponse, Responder};
-use sea_orm::DatabaseConnection;
 use serde::Deserialize;
+use std::sync::Arc;
 
 fn to_http_error(e: SeatError) -> HttpResponse {
     match e {
@@ -33,13 +34,13 @@ pub struct GetSeatsByRangeQuery {
 
 /// GET /api/v1/seats?offset=0&size=10
 pub async fn get_seats(
-    db: web::Data<DatabaseConnection>,
+    factory: web::Data<Arc<dyn InjectFactory>>,
     query: web::Query<GetSeatsQuery>,
 ) -> impl Responder {
     let offset = query.offset.unwrap_or(0);
     let size = query.size.unwrap_or(10);
 
-    let svc = SeatService::new(db.get_ref());
+    let svc = factory.seat_service();
     match svc.get_seats(offset, size).await {
         Ok((rows, total)) => {
             HttpResponse::Ok().json(seat_ctrl::to_get_seats_response(&rows, total, offset, size))
@@ -50,7 +51,7 @@ pub async fn get_seats(
 
 /// GET /api/v1/seats/range?seat_id=1,2,3&name=A1,A2
 pub async fn get_seats_by_range(
-    db: web::Data<DatabaseConnection>,
+    factory: web::Data<Arc<dyn InjectFactory>>,
     query: web::Query<GetSeatsByRangeQuery>,
 ) -> impl Responder {
     let seat_ids: Vec<i32> = query
@@ -74,7 +75,7 @@ pub async fn get_seats_by_range(
         return HttpResponse::Ok().json(seat_ctrl::to_get_seats_response(&[], 0, 0, 0));
     }
 
-    let svc = SeatService::new(db.get_ref());
+    let svc = factory.seat_service();
     match svc.get_seats_by_range(seat_ids, names).await {
         Ok(rows) => {
             let total = rows.len() as u64;
@@ -86,7 +87,7 @@ pub async fn get_seats_by_range(
 
 /// POST /api/v1/seats
 pub async fn create_seats(
-    db: web::Data<DatabaseConnection>,
+    factory: web::Data<Arc<dyn InjectFactory>>,
     payload: web::Json<Vec<ProtoCreateSeatInput>>,
 ) -> impl Responder {
     let proto_inputs = payload.into_inner();
@@ -106,7 +107,7 @@ pub async fn create_seats(
         })
         .collect();
 
-    let svc = SeatService::new(db.get_ref());
+    let svc = factory.seat_service();
     match svc.create_seats(&inputs).await {
         Ok(created) => {
             let msg = format!("Created {} seat(s)", created.len());
@@ -118,7 +119,7 @@ pub async fn create_seats(
 
 /// PUT /api/v1/seats
 pub async fn update_seats(
-    db: web::Data<DatabaseConnection>,
+    factory: web::Data<Arc<dyn InjectFactory>>,
     payload: web::Json<Vec<ProtoUpdateSeatInput>>,
 ) -> impl Responder {
     let proto_inputs = payload.into_inner();
@@ -139,7 +140,7 @@ pub async fn update_seats(
         })
         .collect();
 
-    let svc = SeatService::new(db.get_ref());
+    let svc = factory.seat_service();
     match svc.update_seats(&inputs).await {
         Ok(updated) => {
             let msg = format!("Updated {} seat(s)", updated.len());
@@ -151,7 +152,7 @@ pub async fn update_seats(
 
 /// DELETE /api/v1/seats
 pub async fn delete_seats(
-    db: web::Data<DatabaseConnection>,
+    factory: web::Data<Arc<dyn InjectFactory>>,
     payload: web::Json<Vec<i32>>,
 ) -> impl Responder {
     let seat_ids = payload.into_inner();
@@ -162,7 +163,7 @@ pub async fn delete_seats(
         ));
     }
 
-    let svc = SeatService::new(db.get_ref());
+    let svc = factory.seat_service();
     match svc.delete_seats(seat_ids).await {
         Ok(rows_affected) => HttpResponse::Ok().json(seat_ctrl::to_seat_list_response(
             &[],

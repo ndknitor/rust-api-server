@@ -1,20 +1,21 @@
 use crate::controllers::seat as seat_ctrl;
+use crate::inject::InjectFactory;
 use crate::proto::seat::service_server::Service as GrpcSeatService;
 use crate::proto::seat::{
     CreateSeatsRequest, DeleteSeatsRequest, GetSeatsByRangeRequest, GetSeatsRequest,
     GetSeatsResponse, SeatListResponse, UpdateSeatsRequest,
 };
-use crate::services::seat::{CreateSeatInput, SeatError, SeatService, UpdateSeatInput};
-use sea_orm::DatabaseConnection;
+use crate::services::seat::{CreateSeatInput, SeatError, UpdateSeatInput};
+use std::sync::Arc;
 use tonic::{Request, Response, Status};
 
 pub struct SeatEndpoint {
-    db: DatabaseConnection,
+    factory: Arc<dyn InjectFactory>,
 }
 
 impl SeatEndpoint {
-    pub fn new(db: DatabaseConnection) -> Self {
-        Self { db }
+    pub fn new(factory: Arc<dyn InjectFactory>) -> Self {
+        Self { factory }
     }
 }
 
@@ -40,7 +41,7 @@ impl GrpcSeatService for SeatEndpoint {
         let offset = req.offset.max(0) as u64;
         let size = if req.size <= 0 { 10 } else { req.size } as u64;
 
-        let svc = SeatService::new(&self.db);
+        let svc = self.factory.seat_service();
         let (rows, total) = svc
             .get_seats(offset, size)
             .await
@@ -61,7 +62,7 @@ impl GrpcSeatService for SeatEndpoint {
             return Ok(Response::new(seat_ctrl::to_get_seats_response(&[], 0, 0, 0)));
         }
 
-        let svc = SeatService::new(&self.db);
+        let svc = self.factory.seat_service();
         let rows = svc
             .get_seats_by_range(req.seat_ids, req.names)
             .await
@@ -95,7 +96,7 @@ impl GrpcSeatService for SeatEndpoint {
             })
             .collect();
 
-        let svc = SeatService::new(&self.db);
+        let svc = self.factory.seat_service();
         let created = svc.create_seats(&inputs).await.map_err(to_status)?;
 
         Ok(Response::new(seat_ctrl::to_seat_list_response(
@@ -127,7 +128,7 @@ impl GrpcSeatService for SeatEndpoint {
             })
             .collect();
 
-        let svc = SeatService::new(&self.db);
+        let svc = self.factory.seat_service();
         let updated = svc.update_seats(&inputs).await.map_err(to_status)?;
 
         Ok(Response::new(seat_ctrl::to_seat_list_response(
@@ -148,7 +149,7 @@ impl GrpcSeatService for SeatEndpoint {
             )));
         }
 
-        let svc = SeatService::new(&self.db);
+        let svc = self.factory.seat_service();
         let rows_affected = svc
             .delete_seats(req.seat_ids)
             .await
