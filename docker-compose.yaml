@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: etdb
+      POSTGRES_PASSWORD: etdb
+      POSTGRES_DB: etdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres:/var/lib/postgresql
+      - ./database.postgres.sql:/docker-entrypoint-initdb.d/database.postgres.sql
+volumes:
+  postgres:

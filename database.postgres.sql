@@ -1,5 +1,3 @@
-CREATE DATABASE etdb;
-
 \c etdb;
 
 CREATE TABLE "user" (
@@ -216,3 +214,4 @@ INSERT INTO trip (trip_id, route_id, start_date, end_date, bus_id) VALUES
 (35, 2, '2022-11-15 20:00:00', '2022-11-15 22:00:00', 3),
 (36, 2, '2022-11-22 06:49:02', '2022-11-22 11:49:02', 14),
 (37, 17, '2022-10-30 15:35:47', '2022-11-08 15:35:47', 14);
+

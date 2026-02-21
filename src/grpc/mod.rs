@@ -1,6 +1,5 @@
 mod endpoints;
 
-use crate::config::Config;
 use crate::inject::InjectFactory;
 use crate::proto;
 use endpoints::auth::AuthEndpoint;
@@ -16,7 +15,7 @@ use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 pub async fn start(
     factory: Arc<dyn InjectFactory>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let cfg = Config::from_env();
+    let cfg = factory.config();
     let addr = format!("{}:{}", cfg.host, cfg.grpc_port).parse()?;
 
     println!("Starting gRPC server on grpc://{}", addr);

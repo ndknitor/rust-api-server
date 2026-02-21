@@ -3,14 +3,14 @@
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
-#[sea_orm(table_name = "seat")]
+#[sea_orm(table_name = "trip")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
-    pub seat_id: i32,
+    pub trip_id: i32,
+    pub route_id: i32,
+    pub start_date: DateTime,
+    pub end_date: DateTime,
     pub bus_id: i32,
-    pub price: i32,
-    pub deleted: bool,
-    pub name: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -23,6 +23,14 @@ pub enum Relation {
         on_delete = "NoAction"
     )]
     Bus,
+    #[sea_orm(
+        belongs_to = "super::route::Entity",
+        from = "Column::RouteId",
+        to = "super::route::Column::RouteId",
+        on_update = "NoAction",
+        on_delete = "NoAction"
+    )]
+    Route,
     #[sea_orm(has_many = "super::ticket::Entity")]
     Ticket,
 }
@@ -30,6 +38,12 @@ pub enum Relation {
 impl Related<super::bus::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Bus.def()
+    }
+}
+
+impl Related<super::route::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Route.def()
     }
 }
 

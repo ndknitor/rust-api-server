@@ -21,7 +21,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let db = sea_orm::Database::connect(&cfg.database_url).await?;
     println!("Connected to database");
 
-    let factory = Arc::new(InjectFactoryImpl::new(db, &cfg));
+    let factory = Arc::new(InjectFactoryImpl::new(db, cfg));
 
     grpc::start(factory).await
 }

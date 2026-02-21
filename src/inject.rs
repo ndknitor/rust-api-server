@@ -5,6 +5,9 @@ use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 
 pub trait InjectFactory: Send + Sync {
+    /// Singleton: shared config instance
+    fn config(&self) -> &Config;
+
     /// Singleton: shared instance across all requests
     fn auth_service(&self) -> Arc<dyn AuthServiceTrait>;
 
@@ -13,22 +16,27 @@ pub trait InjectFactory: Send + Sync {
 }
 
 pub struct InjectFactoryImpl {
+    config: Config,
     db: DatabaseConnection,
     auth: Arc<dyn AuthServiceTrait>,
 }
 
 impl InjectFactoryImpl {
-    pub fn new(db: DatabaseConnection, cfg: &Config) -> Self {
+    pub fn new(db: DatabaseConnection, cfg: Config) -> Self {
         let auth = Arc::new(AuthServiceImpl::new(
             cfg.jwt_secret.clone(),
             cfg.jwt_ttl,
             cfg.environment.clone(),
         ));
-        Self { db, auth }
+        Self { config: cfg, db, auth }
     }
 }
 
 impl InjectFactory for InjectFactoryImpl {
+    fn config(&self) -> &Config {
+        &self.config
+    }
+
     fn auth_service(&self) -> Arc<dyn AuthServiceTrait> {
         Arc::clone(&self.auth)
     }

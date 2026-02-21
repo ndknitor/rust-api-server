@@ -3,34 +3,22 @@
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
-#[sea_orm(table_name = "seat")]
+#[sea_orm(table_name = "user")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
-    pub seat_id: i32,
-    pub bus_id: i32,
-    pub price: i32,
-    pub deleted: bool,
-    pub name: String,
+    pub user_id: i32,
+    pub email: String,
+    pub fullname: String,
+    pub phone: String,
+    pub address: String,
+    pub role_id: i32,
+    pub password: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(
-        belongs_to = "super::bus::Entity",
-        from = "Column::BusId",
-        to = "super::bus::Column::BusId",
-        on_update = "NoAction",
-        on_delete = "NoAction"
-    )]
-    Bus,
     #[sea_orm(has_many = "super::ticket::Entity")]
     Ticket,
-}
-
-impl Related<super::bus::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Bus.def()
-    }
 }
 
 impl Related<super::ticket::Entity> for Entity {
