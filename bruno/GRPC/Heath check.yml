@@ -1,0 +1,10 @@
+info:
+  name: Heath check
+  type: grpc
+  seq: 1
+
+grpc:
+  url: ""
+  method: ""
+  message: "{}"
+  auth: inherit

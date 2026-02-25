@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package api;
+
+service ProtectedService {
+  rpc Me(ProtectedRequest) returns (ProtectedResponse);
+}
+
+message ProtectedRequest {}
+
+message ProtectedResponse {
+  string sub = 1;
+  repeated string roles = 2;
+  repeated string policies = 3;
+}

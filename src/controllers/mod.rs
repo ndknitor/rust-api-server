@@ -1,2 +1,1 @@
-pub mod auth;
-pub mod seat;
+pub mod v1;

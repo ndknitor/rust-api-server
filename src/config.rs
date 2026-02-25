@@ -1,63 +1,61 @@
 use std::env;
+use std::error::Error;
+use std::fmt;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Config {
     pub host: String,
-    pub http_port: u16,
-    pub grpc_port: u16,
+    pub port: u16,
     pub jwt_secret: String,
     pub jwt_ttl: u64,
-    pub cors_origins: Vec<String>,
-    pub environment: String,
-    pub database_url: String,
+    pub cors_origin: String,
+    pub rust_log: String,
 }
 
+#[derive(Debug)]
+pub enum ConfigError {
+    InvalidPort(std::num::ParseIntError),
+    InvalidJwtTtl(std::num::ParseIntError),
+}
+
+impl fmt::Display for ConfigError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ConfigError::InvalidPort(err) => write!(f, "invalid PORT: {err}"),
+            ConfigError::InvalidJwtTtl(err) => write!(f, "invalid JWT_TTL: {err}"),
+        }
+    }
+}
+
+impl Error for ConfigError {}
+
 impl Config {
-    pub fn from_env() -> Self {
-        dotenvy::dotenv().ok();
+    pub fn from_env() -> Result<Self, ConfigError> {
+        let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
+        let port = env::var("PORT")
+            .unwrap_or_else(|_| "8080".to_string())
+            .parse::<u16>()
+            .map_err(ConfigError::InvalidPort)?;
 
-        let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".into());
-
-        let http_port = env::var("HTTP_PORT")
-            .ok()
-            .and_then(|p| p.parse::<u16>().ok())
-            .unwrap_or(8080);
-
-        let grpc_port = env::var("GRPC_PORT")
-            .ok()
-            .and_then(|p| p.parse::<u16>().ok())
-            .unwrap_or(50051);
-
-        let jwt_secret = env::var("JWT_SECRET")
-            .expect("JWT_SECRET must be set");
-
+        let jwt_secret = env::var("JWT_SECRET").unwrap_or_else(|_| "key".to_string());
         let jwt_ttl = env::var("JWT_TTL")
-            .ok()
-            .and_then(|v| v.parse::<u64>().ok())
-            .unwrap_or(3600);
+            .unwrap_or_else(|_| "3600".to_string())
+            .parse::<u64>()
+            .map_err(ConfigError::InvalidJwtTtl)?;
 
-        let cors_origins = env::var("CORS_ORIGIN")
-            .unwrap_or_default()
-            .split(',')
-            .map(|o| o.trim().to_string())
-            .filter(|o| !o.is_empty())
-            .collect::<Vec<_>>();
+        let cors_origin =
+            env::var("CORS_ORIGIN").unwrap_or_else(|_| "http://localhost:3000".to_string());
 
-        let environment = env::var("ENVIRONMENT")
-            .unwrap_or_else(|_| "development".into());
+        let rust_log =
+            env::var("RUST_LOG").unwrap_or_else(|_| "info,rust_api_server=debug".to_string());
 
-        let database_url = env::var("DATABASE_URL")
-            .expect("DATABASE_URL must be set");
-
-        Self {
+        Ok(Self {
             host,
-            http_port,
-            grpc_port,
+            port,
             jwt_secret,
             jwt_ttl,
-            cors_origins,
-            environment,
-            database_url,
-        }
+            cors_origin,
+            rust_log,
+        })
     }
 }

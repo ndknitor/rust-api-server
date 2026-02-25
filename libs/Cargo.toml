@@ -1,0 +1,10 @@
+[package]
+name = "libs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = "0.8"
+jsonwebtoken = "10"
+serde = { version = "1", features = ["derive"] }
+tonic = "0.14"
