@@ -1,4 +1,4 @@
-syntax = "proto3";
+syntax = "proto2";
 
 package api;
 
@@ -9,7 +9,7 @@ service ProtectedService {
 message ProtectedRequest {}
 
 message ProtectedResponse {
-  string sub = 1;
+  required string sub = 1;
   repeated string roles = 2;
   repeated string policies = 3;
 }

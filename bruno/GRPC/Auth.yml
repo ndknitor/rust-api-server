@@ -1,0 +1,16 @@
+info:
+  name: Auth
+  type: grpc
+  seq: 2
+
+grpc:
+  url: grpc://localhost:8080
+  method: /api.AuthService/LoginCookie
+  methodType: unary
+  protoFilePath: ../proto/auth.proto
+  message: |-
+    {
+      "username" : "admin",
+      "password" : "admin"
+    }
+  auth: inherit

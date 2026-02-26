@@ -1,4 +1,4 @@
-syntax = "proto3";
+syntax = "proto2";
 
 package api;
 
@@ -9,21 +9,21 @@ service AuthService {
 }
 
 message LoginRequest {
-  string username = 1;
-  string password = 2;
+  required string username = 1;
+  required string password = 2;
 }
 
 message LoginResponse {
-  string status = 1;
+  required string status = 1;
 }
 
 message LoginJWTResponse {
-  string status = 1;
-  string token = 2;
+  required string status = 1;
+  required string token = 2;
 }
 
 message LogoutRequest {}
 
 message LogoutResponse {
-  string status = 1;
+  required string status = 1;
 }

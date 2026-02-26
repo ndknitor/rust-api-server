@@ -1,4 +1,4 @@
-syntax = "proto3";
+syntax = "proto2";
 
 package api;
 
@@ -9,6 +9,6 @@ service HeathService {
 message HeathRequest {}
 
 message HeathResponse {
-  string status = 1;
-  string service = 2;
+  required string status = 1;
+  required string service = 2;
 }

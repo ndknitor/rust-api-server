@@ -7,6 +7,10 @@ config:
     protoFiles:
       - type: file
         path: ../proto/heath.proto
+      - type: file
+        path: ../proto/auth.proto
+      - type: file
+        path: ../proto/protected.proto
     importPaths:
       - path: ../proto
   proxy:

@@ -1,0 +1,14 @@
+info:
+  name: Protected
+  type: grpc
+  seq: 3
+
+grpc:
+  url: grpc://localhost:8080
+  method: /api.ProtectedService/Me
+  methodType: unary
+  protoFilePath: ../proto/protected.proto
+  message: "{}"
+  auth:
+    type: bearer
+    token: ""

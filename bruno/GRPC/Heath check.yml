@@ -4,7 +4,8 @@ info:
   seq: 1
 
 grpc:
-  url: ""
-  method: ""
+  url: grpc://localhost:8080
+  method: /api.HeathService/Check
+  methodType: unary
+  protoFilePath: ../proto/heath.proto
   message: "{}"
-  auth: inherit
