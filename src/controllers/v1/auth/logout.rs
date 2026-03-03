@@ -1,5 +1,5 @@
 use axum::{
-    http::{HeaderMap, HeaderValue, StatusCode, header::SET_COOKIE},
+    http::{HeaderMap, HeaderValue, header::SET_COOKIE},
     response::IntoResponse,
     Json,
 };
@@ -9,10 +9,10 @@ use crate::pb;
 
 use super::{AuthControllerError, clear_auth_cookie, AuthState};
 
-pub async fn logout() -> Result<impl IntoResponse, StatusCode> {
+pub async fn logout() -> Result<impl IntoResponse, AuthControllerError> {
     let mut headers = HeaderMap::new();
     let value = HeaderValue::from_str("auth_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0")
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|_| AuthControllerError::InvalidCookie)?;
     headers.insert(SET_COOKIE, value);
 
     Ok((headers, Json(pb::LogoutResponse { status: "ok".to_string() })))

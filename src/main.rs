@@ -42,8 +42,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     let grpc_routes = controllers::v1::grpc_router(config, jwt_service, auth_service, db);
 
-    let cors = build_cors(&cors_origin);
-    let app = http_app.merge(grpc_routes).layer(cors);
+    let http_app = http_app.layer(build_http_cors(&cors_origin));
+    let grpc_routes = grpc_routes.layer(build_grpc_cors(&cors_origin));
+    let app = http_app.merge(grpc_routes);
 
     info!("HTTP + gRPC listening on {addr}");
 
@@ -53,14 +54,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn build_cors(cors_origin: &str) -> CorsLayer {
-    let origins: Vec<HeaderValue> = cors_origin
+fn parse_origins(cors_origin: &str) -> Vec<HeaderValue> {
+    cors_origin
         .split(',')
         .filter_map(|s| HeaderValue::from_str(s.trim()).ok())
-        .collect();
+        .collect()
+}
+
+fn build_http_cors(cors_origin: &str) -> CorsLayer {
+    let origins = parse_origins(cors_origin);
 
     let mut layer = CorsLayer::new()
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+        .allow_headers([
+            header::AUTHORIZATION,
+            header::CONTENT_TYPE,
+            header::COOKIE,
+        ])
+        .allow_credentials(true)
+        .expose_headers([header::SET_COOKIE]);
+
+    if !origins.is_empty() {
+        layer = layer.allow_origin(origins);
+    }
+
+    layer
+}
+
+fn build_grpc_cors(cors_origin: &str) -> CorsLayer {
+    let origins = parse_origins(cors_origin);
+
+    let mut layer = CorsLayer::new()
+        .allow_methods([Method::POST, Method::OPTIONS])
         .allow_headers([
             header::AUTHORIZATION,
             header::CONTENT_TYPE,
@@ -71,10 +96,10 @@ fn build_cors(cors_origin: &str) -> CorsLayer {
         ])
         .allow_credentials(true)
         .expose_headers([
+            header::SET_COOKIE,
             header::HeaderName::from_static("grpc-status"),
             header::HeaderName::from_static("grpc-message"),
             header::HeaderName::from_static("grpc-status-details-bin"),
-            header::SET_COOKIE,
         ]);
 
     if !origins.is_empty() {

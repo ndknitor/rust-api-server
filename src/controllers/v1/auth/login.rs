@@ -1,6 +1,6 @@
 use axum::{
     extract::State,
-    http::{HeaderMap, HeaderValue, StatusCode, header::SET_COOKIE},
+    http::{HeaderMap, HeaderValue, header::SET_COOKIE},
     response::IntoResponse,
     Json,
 };
@@ -28,20 +28,19 @@ pub struct LoginInput {
 pub async fn login_jwt(
     State(state): State<Arc<AuthState>>,
     Json(input): Json<pb::LoginRequest>,
-) -> Result<Json<pb::LoginJwtResponse>, StatusCode> {
+) -> Result<Json<pb::LoginJwtResponse>, AuthControllerError> {
     let login_input = LoginInput {
         username: input.username.clone(),
         password: input.password.clone(),
     };
-    login_input.validate().map_err(|e| map_validation_error(e))?;
+    login_input.validate().map_err(|e| AuthControllerError::Validation(super::errors::extract_validation_messages(e)))?;
 
     let user = state.auth_service.find_user_by_email_password(&state.db, &input.username, &input.password)
         .await
-        .map_err(map_auth_error_http)?;
+        .map_err(AuthControllerError::from)?;
 
     let token = do_login(&state.jwt_service, &state.config, &user.email)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     Ok(Json(pb::LoginJwtResponse {
         status: "ok".to_string(),
@@ -52,24 +51,23 @@ pub async fn login_jwt(
 pub async fn login_cookie(
     State(state): State<Arc<AuthState>>,
     Json(input): Json<pb::LoginRequest>,
-) -> Result<impl IntoResponse, StatusCode> {
+) -> Result<impl IntoResponse, AuthControllerError> {
     let login_input = LoginInput {
         username: input.username.clone(),
         password: input.password.clone(),
     };
-    login_input.validate().map_err(|e| map_validation_error(e))?;
+    login_input.validate().map_err(|e| AuthControllerError::Validation(super::errors::extract_validation_messages(e)))?;
 
     let user = state.auth_service.find_user_by_email_password(&state.db, &input.username, &input.password)
         .await
-        .map_err(map_auth_error_http)?;
+        .map_err(AuthControllerError::from)?;
 
     let token = do_login(&state.jwt_service, &state.config, &user.email)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     let mut headers = HeaderMap::new();
     let cookie = format!("auth_token={token}; Path=/; HttpOnly; SameSite=Lax; Max-Age={}", state.config.jwt_ttl);
-    let value = HeaderValue::from_str(&cookie).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let value = HeaderValue::from_str(&cookie).map_err(|_| AuthControllerError::InvalidCookie)?;
     headers.insert(SET_COOKIE, value);
 
     Ok((headers, Json(pb::LoginResponse { status: "ok".to_string() })))
@@ -86,13 +84,13 @@ pub async fn grpc_login_jwt(
         username: input.username.clone(),
         password: input.password.clone(),
     };
-    login_input.validate().map_err(|e| AuthControllerError::Validation(e.to_string()))?;
+    login_input.validate().map_err(|e| AuthControllerError::Validation(super::errors::extract_validation_messages(e)))?;
 
     let user = service.auth_service.find_user_by_email_password(&service.db, &input.username, &input.password)
         .await
         .map_err(AuthControllerError::from)?;
 
-    let token = do_login_grpc(&service.jwt_service, &service.config, &user.email)
+    let token = do_login(&service.jwt_service, &service.config, &user.email)
         .await?;
 
     Ok(Response::new(pb::LoginJwtResponse {
@@ -110,13 +108,13 @@ pub async fn grpc_login_cookie(
         username: input.username.clone(),
         password: input.password.clone(),
     };
-    login_input.validate().map_err(|e| AuthControllerError::Validation(e.to_string()))?;
+    login_input.validate().map_err(|e| AuthControllerError::Validation(super::errors::extract_validation_messages(e)))?;
 
     let user = service.auth_service.find_user_by_email_password(&service.db, &input.username, &input.password)
         .await
         .map_err(AuthControllerError::from)?;
 
-    let token = do_login_grpc(&service.jwt_service, &service.config, &user.email)
+    let token = do_login(&service.jwt_service, &service.config, &user.email)
         .await?;
 
     let cookie = build_auth_cookie(&token, service.config.jwt_ttl);
@@ -131,33 +129,11 @@ pub async fn grpc_login_cookie(
     Ok(response)
 }
 
-async fn do_login(jwt_service: &Arc<dyn JWTService>, config: &crate::config::Config, email: &str) -> Result<String, ()> {
-    jwt_service.sign_token(
-        email.to_string(),
-        config.jwt_ttl,
-        vec!["user".to_string()],
-        vec!["protected.read".to_string()],
-    )
-    .await
-    .map_err(|_| ())
-}
-
-async fn do_login_grpc(jwt_service: &Arc<dyn JWTService>, config: &crate::config::Config, email: &str) -> Result<String, AuthControllerError> {
+async fn do_login(jwt_service: &Arc<dyn JWTService>, config: &crate::config::Config, email: &str) -> Result<String, AuthControllerError> {
     Ok(jwt_service.sign_token(
         email.to_string(),
         config.jwt_ttl,
         vec!["user".to_string()],
         vec!["protected.read".to_string()],
     ).await?)
-}
-
-fn map_auth_error_http(e: crate::services::auth::AuthError) -> StatusCode {
-    match e {
-        crate::services::auth::AuthError::InvalidCredentials => StatusCode::UNAUTHORIZED,
-        crate::services::auth::AuthError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
-    }
-}
-
-fn map_validation_error(_e: validator::ValidationErrors) -> StatusCode {
-    StatusCode::BAD_REQUEST
 }
