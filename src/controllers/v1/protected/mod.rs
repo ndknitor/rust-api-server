@@ -1,18 +1,10 @@
-use axum::Json;
-use axum::extract::Extension;
-use libs::jwt::Claims;
-use serde_json::json;
+pub mod me;
+
 use tonic::{Request, Response, Status};
 
-use crate::pb;
+use libs::jwt::Claims;
 
-pub async fn me(Extension(claims): Extension<Claims>) -> Json<serde_json::Value> {
-    Json(json!({
-        "sub": claims.sub,
-        "roles": claims.roles,
-        "policies": claims.policies,
-    }))
-}
+use crate::pb;
 
 #[derive(Default)]
 pub struct ProtectedController;

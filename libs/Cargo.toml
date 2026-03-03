@@ -8,3 +8,4 @@ axum = "0.8"
 jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 serde = { version = "1", features = ["derive"] }
 tonic = "0.14"
+thiserror = "2"

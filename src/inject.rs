@@ -1,43 +1,71 @@
 use std::sync::{Arc, OnceLock};
 
+use sea_orm::DatabaseConnection;
+use thiserror::Error;
+
 use crate::config::{Config, ConfigError};
 use crate::services::jwt::{JWTService, JWTServiceImpl};
 
-pub trait InjectFactory {
-    fn config(&self) -> Result<Arc<Config>, ConfigError>;
-    fn jwt_service(&self) -> Result<Arc<dyn JWTService>, ConfigError>;
+#[derive(Debug, Error)]
+pub enum InjectError {
+    #[error("config error: {0}")]
+    Config(#[from] ConfigError),
+    #[error("database error: {0}")]
+    Database(#[from] sea_orm::DbErr),
+    #[error("inject not initialized")]
+    NotInitialized,
 }
 
-pub struct InjectFactoryImpl;
+pub trait InjectFactory {
+    fn config(&self) -> Result<Arc<Config>, InjectError>;
+    fn jwt_service(&self) -> Result<Arc<dyn JWTService>, InjectError>;
+    fn database(&self) -> Result<Arc<DatabaseConnection>, InjectError>;
+}
 
-static CONFIG_SINGLETON: OnceLock<Arc<Config>> = OnceLock::new();
-static JWT_SERVICE_SINGLETON: OnceLock<Arc<dyn JWTService>> = OnceLock::new();
+pub struct InjectFactoryImpl {
+    config: OnceLock<Arc<Config>>,
+    jwt_service: OnceLock<Arc<dyn JWTService>>,
+    database: OnceLock<Arc<DatabaseConnection>>,
+}
 
 impl InjectFactoryImpl {
-    pub fn new() -> Self {
-        Self
+    pub async fn init() -> Result<Self, InjectError> {
+        let config = Arc::new(Config::from_env()?);
+
+        let jwt_service: Arc<dyn JWTService> =
+            Arc::new(JWTServiceImpl::new(config.jwt_secret.clone()));
+
+        // Connect to database
+        let db = sea_orm::Database::connect(&config.database_url).await?;
+        let database = Arc::new(db);
+
+        Ok(Self {
+            config: OnceLock::from(config),
+            jwt_service: OnceLock::from(jwt_service),
+            database: OnceLock::from(database),
+        })
     }
 }
 
 impl InjectFactory for InjectFactoryImpl {
-    fn config(&self) -> Result<Arc<Config>, ConfigError> {
-        if let Some(config) = CONFIG_SINGLETON.get() {
-            return Ok(Arc::clone(config));
-        }
-
-        let config = Arc::new(Config::from_env()?);
-        let _ = CONFIG_SINGLETON.set(Arc::clone(&config));
-        Ok(config)
+    fn config(&self) -> Result<Arc<Config>, InjectError> {
+        self.config
+            .get()
+            .cloned()
+            .ok_or(InjectError::NotInitialized)
     }
 
-    fn jwt_service(&self) -> Result<Arc<dyn JWTService>, ConfigError> {
-        if let Some(service) = JWT_SERVICE_SINGLETON.get() {
-            return Ok(Arc::clone(service));
-        }
+    fn jwt_service(&self) -> Result<Arc<dyn JWTService>, InjectError> {
+        self.jwt_service
+            .get()
+            .cloned()
+            .ok_or(InjectError::NotInitialized)
+    }
 
-        let config = self.config()?;
-        let service: Arc<dyn JWTService> = Arc::new(JWTServiceImpl::new(config.jwt_secret.clone()));
-        let _ = JWT_SERVICE_SINGLETON.set(Arc::clone(&service));
-        Ok(service)
+    fn database(&self) -> Result<Arc<DatabaseConnection>, InjectError> {
+        self.database
+            .get()
+            .cloned()
+            .ok_or(InjectError::NotInitialized)
     }
 }

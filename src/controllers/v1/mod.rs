@@ -5,49 +5,71 @@ pub mod protected;
 use std::sync::Arc;
 
 use axum::{
-    Extension, Router, middleware,
+    Router, middleware,
     routing::{get, post},
 };
+use sea_orm::DatabaseConnection;
 use libs::axum::middlewares::jwt_authorize::{JwtAuth, jwt_authorize};
 use libs::tonic::middlewares::jwt_authorize::JwtAuthInterceptor;
 use tonic::service::interceptor::InterceptedService;
 use tonic::service::{LayerExt, Routes};
 
-use crate::{config::Config, pb, services::jwt::JWTService};
+use crate::{config::Config, pb, services::auth::Auth, services::jwt::JWTService};
 
-pub fn http_router(config: Arc<Config>, jwt_service: Arc<dyn JWTService>) -> Router {
+pub fn http_router(
+    config: Arc<Config>,
+    jwt_service: Arc<dyn JWTService>,
+    auth_service: Arc<dyn Auth>,
+    db: Arc<DatabaseConnection>,
+) -> Router {
+    let auth_state = Arc::new(auth::AuthState::new(
+        config.clone(),
+        jwt_service.clone(),
+        auth_service.clone(),
+        db.clone(),
+    ));
+
     let jwt_auth = JwtAuth::with_policies(config.jwt_secret.clone(), vec!["protected.read"]);
 
     let protected_router = Router::new()
-        .route("/protected", get(protected::me))
+        .route("/protected", get(protected::me::me))
         .route_layer(middleware::from_fn_with_state(jwt_auth, jwt_authorize));
 
     let auth_router = Router::new()
-        .route("/auth/jwt", post(auth::login_jwt_http))
-        .route("/auth/cookie", post(auth::login_cookie_http))
-        .route("/auth/logout", post(auth::logout_http))
-        .layer(Extension(jwt_service));
+        .route("/auth/jwt", post(auth::login_jwt))
+        .route("/auth/cookie", post(auth::login_cookie))
+        .route("/auth/logout", post(auth::logout))
+        .with_state(auth_state);
 
     Router::new()
-        .route("/", get(heath::healthz))
-        .route("/healthz", get(heath::healthz))
+        .route("/", get(heath::healthz::healthz))
+        .route("/healthz", get(heath::healthz::healthz))
         .merge(auth_router)
         .merge(protected_router)
         .with_state(config)
 }
 
-pub fn grpc_router(config: Arc<Config>, jwt_service: Arc<dyn JWTService>) -> Router {
+pub fn grpc_router(
+    config: Arc<Config>,
+    jwt_service: Arc<dyn JWTService>,
+    auth_service: Arc<dyn Auth>,
+    db: Arc<DatabaseConnection>,
+) -> Router {
     let jwt_secret = config.jwt_secret.clone();
+
+    let auth_state = auth::AuthState::new(
+        config.clone(),
+        jwt_service.clone(),
+        auth_service.clone(),
+        db.clone(),
+    );
 
     let heath = tonic_web::GrpcWebLayer::new().named_layer(
         pb::heath_service_server::HeathServiceServer::new(heath::HeathController::new()),
     );
 
     let auth = tonic_web::GrpcWebLayer::new().named_layer(
-        pb::auth_service_server::AuthServiceServer::new(auth::AuthController::new(
-            config,
-            jwt_service,
-        )),
+        pb::auth_service_server::AuthServiceServer::new(auth_state),
     );
 
     let interceptor = JwtAuthInterceptor::with_policies(jwt_secret, vec!["protected.read"]);

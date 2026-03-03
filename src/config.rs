@@ -2,6 +2,8 @@ use std::env;
 use std::error::Error;
 use std::fmt;
 
+use dotenv::dotenv;
+
 #[derive(Debug, Clone)]
 pub struct Config {
     pub host: String,
@@ -10,6 +12,7 @@ pub struct Config {
     pub jwt_ttl: u64,
     pub cors_origin: String,
     pub rust_log: String,
+    pub database_url: String,
 }
 
 #[derive(Debug)]
@@ -31,6 +34,8 @@ impl Error for ConfigError {}
 
 impl Config {
     pub fn from_env() -> Result<Self, ConfigError> {
+        dotenv().ok();
+
         let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
         let port = env::var("PORT")
             .unwrap_or_else(|_| "8080".to_string())
@@ -49,6 +54,9 @@ impl Config {
         let rust_log =
             env::var("RUST_LOG").unwrap_or_else(|_| "info,rust_api_server=debug".to_string());
 
+        let database_url =
+            env::var("DATABASE_URL").unwrap_or_else(|_| "postgres://username:password@localhost:5432/database".to_string());
+
         Ok(Self {
             host,
             port,
@@ -56,6 +64,7 @@ impl Config {
             jwt_ttl,
             cors_origin,
             rust_log,
+            database_url,
         })
     }
 }

@@ -1,19 +1,7 @@
+use async_trait::async_trait;
 use libs::jwt::{build_claims, encode_token};
 
-pub trait JWTService: Send + Sync {
-    fn sign_token(
-        &self,
-        subject: String,
-        ttl_seconds: u64,
-        roles: Vec<String>,
-        policies: Vec<String>,
-    ) -> Result<String, JWTServiceError>;
-}
-
-#[derive(Debug)]
-pub enum JWTServiceError {
-    SignFailed,
-}
+pub use super::JWTServiceError;
 
 pub struct JWTServiceImpl {
     secret: String,
@@ -27,8 +15,9 @@ impl JWTServiceImpl {
     }
 }
 
-impl JWTService for JWTServiceImpl {
-    fn sign_token(
+#[async_trait]
+impl super::JWTService for JWTServiceImpl {
+    async fn sign_token(
         &self,
         subject: String,
         ttl_seconds: u64,

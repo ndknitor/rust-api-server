@@ -6,9 +6,11 @@ use tracing::info;
 
 mod config;
 mod controllers;
+mod entities;
 mod inject;
 mod services;
 
+use config::Config;
 use inject::{InjectFactory, InjectFactoryImpl};
 
 pub mod pb {
@@ -17,22 +19,28 @@ pub mod pb {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let injector = InjectFactoryImpl::new();
-    let config = injector.config()?;
-    let jwt_service = injector.jwt_service()?;
+    let config = Config::from_env()?;
 
     tracing_subscriber::fmt()
         .with_env_filter(config.rust_log.clone())
         .init();
+
+    // Initialize injector with all singletons
+    let injector = InjectFactoryImpl::init().await?;
+
+    let config = injector.config()?;
+    let jwt_service = injector.jwt_service()?;
+    let db = injector.database()?;
+    let auth_service: std::sync::Arc<dyn services::auth::Auth> = std::sync::Arc::new(services::auth::AuthImpl::new());
 
     let addr: SocketAddr = format!("{}:{}", config.host, config.port).parse()?;
     let cors_origin = config.cors_origin.clone();
 
     let http_app = Router::new().nest(
         "/api/v1",
-        controllers::v1::http_router(config.clone(), jwt_service.clone()),
+        controllers::v1::http_router(config.clone(), jwt_service.clone(), auth_service.clone(), db.clone()),
     );
-    let grpc_routes = controllers::v1::grpc_router(config, jwt_service);
+    let grpc_routes = controllers::v1::grpc_router(config, jwt_service, auth_service, db);
 
     let cors = build_cors(&cors_origin);
     let app = http_app.merge(grpc_routes).layer(cors);

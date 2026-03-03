@@ -1,5 +1,3 @@
-\c etdb;
-
 CREATE TABLE "user" (
     user_id INT NOT NULL,
     email VARCHAR(128) NOT NULL,
